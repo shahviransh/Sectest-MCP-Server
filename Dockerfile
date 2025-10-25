@@ -103,6 +103,7 @@ COPY sectest_server.py .
 
 # Create non-root user with sudo access
 RUN useradd -m -u 1000 mcpuser && \
+    echo "mcpuser:mcpuser" | chpasswd && \
     chown -R mcpuser:mcpuser /app && \
     apt-get update && \
     apt-get install -y sudo && \
