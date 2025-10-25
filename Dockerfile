@@ -6,34 +6,73 @@ WORKDIR /app
 
 # Set Python unbuffered mode
 ENV PYTHONUNBUFFERED=1
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Update and install required packages
+# First update and install basic tools
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    python3 python3-pip \
-    # Network scanning
-    nmap masscan rustscan \
-    # Web scanning
-    nikto sqlmap wpscan whatweb wafw00f \
-    # Directory bruteforce
-    dirb gobuster ffuf feroxbuster \
-    # Exploitation
-    exploitdb metasploit-framework \
-    # Password attacks
-    hydra john hashcat crunch \
-    # Wireless (if needed)
-    aircrack-ng reaver wifite \
-    # Enumeration
-    enum4linux smbclient rpcclient \
-    # SSL/TLS
-    sslyze testssl.sh \
-    # Subdomain enumeration
-    sublist3r amass \
-    # Web proxies
-    burpsuite zaproxy \
-    # Utilities
-    git curl wget net-tools dnsutils whois \
-    netcat-traditional socat \
+    python3 \
+    python3-pip \
+    git \
+    curl \
+    wget \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install network scanning tools
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    nmap \
+    masscan \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install web scanning tools
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    nikto \
+    sqlmap \
+    wpscan \
+    whatweb \
+    wafw00f \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install directory brute force tools
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    dirb \
+    gobuster \
+    ffuf \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install exploitation tools
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    exploitdb \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install password attack tools
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    hydra \
+    john \
+    crunch \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install enumeration tools
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    enum4linux \
+    smbclient \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install network utilities
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    net-tools \
+    dnsutils \
+    whois \
+    netcat-traditional \
+    socat \
     && rm -rf /var/lib/apt/lists/*
 
 # Update exploitdb
@@ -48,10 +87,13 @@ RUN pip3 install --no-cache-dir -r requirements.txt --break-system-packages
 # Copy the server code
 COPY sectest_server.py .
 
-# Create non-root user
-RUN useradd -m -u 1000 -G sudo mcpuser && \
+# Create non-root user with sudo access
+RUN useradd -m -u 1000 mcpuser && \
     chown -R mcpuser:mcpuser /app && \
-    echo "mcpuser ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+    apt-get update && \
+    apt-get install -y sudo && \
+    echo "mcpuser ALL=(ALL) NOPASSWD: /usr/bin/nmap, /usr/bin/nikto, /usr/bin/sqlmap, /usr/bin/wpscan, /usr/bin/dirb, /usr/bin/masscan, /usr/bin/gobuster, /usr/bin/ffuf, /usr/bin/hydra, /usr/bin/apt-get" >> /etc/sudoers && \
+    rm -rf /var/lib/apt/lists/*
 
 # Switch to non-root user
 USER mcpuser
