@@ -8,6 +8,9 @@ import logging
 import subprocess
 import re
 from datetime import datetime, timezone
+import base64
+import hashlib
+import binascii
 
 from mcp.server.fastmcp import FastMCP
 
@@ -440,6 +443,333 @@ async def get_tool_help(tool_name: str = "") -> str:
     except Exception as e:
         logger.error(f"Get help error: {e}")
         return f"❌ Error: {str(e)}"
+
+@mcp.tool()
+async def decode_base64(encoded_text: str = "") -> str:
+    """Decode base64 encoded text - useful for CTF challenges."""
+    if not encoded_text.strip():
+        return "❌ Error: Encoded text is required"
+    
+    try:
+        # Try standard base64
+        decoded = base64.b64decode(encoded_text).decode('utf-8', errors='replace')
+        return f"🔓 Base64 Decoded:\n\n{decoded}"
+    except Exception as e:
+        try:
+            # Try URL-safe base64
+            decoded = base64.urlsafe_b64decode(encoded_text).decode('utf-8', errors='replace')
+            return f"🔓 Base64 URL-Safe Decoded:\n\n{decoded}"
+        except Exception as e2:
+            return f"❌ Error decoding: {str(e)}\nAlso tried URL-safe: {str(e2)}"
+
+
+@mcp.tool()
+async def encode_base64(plaintext: str = "", url_safe: str = "no") -> str:
+    """Encode text to base64 - url_safe can be yes for URL-safe encoding."""
+    if not plaintext.strip():
+        return "❌ Error: Plaintext is required"
+    
+    try:
+        if url_safe.lower() == "yes":
+            encoded = base64.urlsafe_b64encode(plaintext.encode()).decode()
+            return f"🔒 Base64 URL-Safe Encoded:\n\n{encoded}"
+        else:
+            encoded = base64.b64encode(plaintext.encode()).decode()
+            return f"🔒 Base64 Encoded:\n\n{encoded}"
+    except Exception as e:
+        return f"❌ Error encoding: {str(e)}"
+
+
+@mcp.tool()
+async def hash_text(text: str = "", algorithm: str = "sha256") -> str:
+    """Generate hash of text - algorithm can be md5, sha1, sha256, sha512."""
+    if not text.strip():
+        return "❌ Error: Text is required"
+    
+    try:
+        text_bytes = text.encode()
+        
+        if algorithm.lower() == "md5":
+            hash_obj = hashlib.md5(text_bytes)
+        elif algorithm.lower() == "sha1":
+            hash_obj = hashlib.sha1(text_bytes)
+        elif algorithm.lower() == "sha256":
+            hash_obj = hashlib.sha256(text_bytes)
+        elif algorithm.lower() == "sha512":
+            hash_obj = hashlib.sha512(text_bytes)
+        else:
+            return f"❌ Invalid algorithm. Use: md5, sha1, sha256, sha512"
+        
+        result = hash_obj.hexdigest()
+        return f"🔐 {algorithm.upper()} Hash:\n\n{result}"
+    except Exception as e:
+        return f"❌ Error hashing: {str(e)}"
+
+
+@mcp.tool()
+async def hex_decode(hex_string: str = "") -> str:
+    """Decode hexadecimal string to text."""
+    if not hex_string.strip():
+        return "❌ Error: Hex string is required"
+    
+    try:
+        # Remove common prefixes and spaces
+        hex_clean = hex_string.replace("0x", "").replace("\\x", "").replace(" ", "")
+        decoded = bytes.fromhex(hex_clean).decode('utf-8', errors='replace')
+        return f"🔓 Hex Decoded:\n\n{decoded}"
+    except Exception as e:
+        return f"❌ Error decoding hex: {str(e)}"
+
+
+@mcp.tool()
+async def hex_encode(text: str = "") -> str:
+    """Encode text to hexadecimal."""
+    if not text.strip():
+        return "❌ Error: Text is required"
+    
+    try:
+        encoded = text.encode().hex()
+        return f"🔒 Hex Encoded:\n\n{encoded}"
+    except Exception as e:
+        return f"❌ Error encoding: {str(e)}"
+
+
+@mcp.tool()
+async def rot13_cipher(text: str = "") -> str:
+    """Apply ROT13 cipher to text - works both for encoding and decoding."""
+    if not text.strip():
+        return "❌ Error: Text is required"
+    
+    try:
+        import codecs
+        result = codecs.encode(text, 'rot_13')
+        return f"🔄 ROT13 Result:\n\n{result}"
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
+
+
+@mcp.tool()
+async def caesar_cipher(text: str = "", shift: str = "3", decode: str = "no") -> str:
+    """Apply Caesar cipher with custom shift - shift is number, decode can be yes to decrypt."""
+    if not text.strip():
+        return "❌ Error: Text is required"
+    
+    try:
+        shift_int = int(shift)
+        if decode.lower() == "yes":
+            shift_int = -shift_int
+        
+        result = ""
+        for char in text:
+            if char.isalpha():
+                ascii_offset = 65 if char.isupper() else 97
+                result += chr((ord(char) - ascii_offset + shift_int) % 26 + ascii_offset)
+            else:
+                result += char
+        
+        action = "Decrypted" if decode.lower() == "yes" else "Encrypted"
+        return f"🔐 Caesar Cipher {action} (shift {shift}):\n\n{result}"
+    except ValueError:
+        return "❌ Error: Shift must be a number"
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
+
+
+@mcp.tool()
+async def xor_cipher(text: str = "", key: str = "") -> str:
+    """XOR text with key - works for both encryption and decryption."""
+    if not text.strip():
+        return "❌ Error: Text is required"
+    if not key.strip():
+        return "❌ Error: Key is required"
+    
+    try:
+        result = ""
+        for i, char in enumerate(text):
+            result += chr(ord(char) ^ ord(key[i % len(key)]))
+        
+        # Try to display as hex if not printable
+        if all(32 <= ord(c) <= 126 for c in result):
+            return f"🔐 XOR Result:\n\n{result}"
+        else:
+            hex_result = result.encode().hex()
+            return f"🔐 XOR Result (hex):\n\n{hex_result}\n\nRaw bytes (may not be printable)"
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
+
+
+@mcp.tool()
+async def analyze_cipher(ciphertext: str = "") -> str:
+    """Analyze ciphertext for common patterns and suggest possible ciphers."""
+    if not ciphertext.strip():
+        return "❌ Error: Ciphertext is required"
+    
+    try:
+        analysis = []
+        text = ciphertext.strip()
+        
+        # Check length
+        analysis.append(f"Length: {len(text)} characters")
+        
+        # Character distribution
+        alpha_count = sum(c.isalpha() for c in text)
+        digit_count = sum(c.isdigit() for c in text)
+        space_count = sum(c.isspace() for c in text)
+        
+        analysis.append(f"Alphabetic: {alpha_count}, Digits: {digit_count}, Spaces: {space_count}")
+        
+        # Check for base64
+        if all(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=" for c in text.replace(" ", "")):
+            analysis.append("✓ Looks like Base64")
+        
+        # Check for hex
+        if all(c in "0123456789abcdefABCDEF" for c in text.replace(" ", "").replace("0x", "")):
+            analysis.append("✓ Looks like Hexadecimal")
+        
+        # Check for binary
+        if all(c in "01 " for c in text):
+            analysis.append("✓ Looks like Binary")
+        
+        # Check for uppercase only (possible Caesar/Vigenere)
+        if text.isupper() and alpha_count > len(text) * 0.8:
+            analysis.append("✓ Uppercase only - try Caesar or Vigenere cipher")
+        
+        # Look for common flag formats
+        if "CTF{" in text or "FLAG{" in text or "flag{" in text:
+            analysis.append("🚩 Contains flag format!")
+        
+        return f"🔍 Cipher Analysis:\n\n" + "\n".join(analysis)
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
+
+
+@mcp.tool()
+async def rsa_tool(operation: str = "", n: str = "", e: str = "", d: str = "", ciphertext: str = "", plaintext: str = "") -> str:
+    """RSA operations - operation can be factor, encrypt, or decrypt with appropriate parameters."""
+    if not operation.strip():
+        return "❌ Error: Operation is required (factor, encrypt, or decrypt)"
+    
+    try:
+        if operation == "factor":
+            if not n.strip():
+                return "❌ Error: n (modulus) is required for factoring"
+            
+            # Try to factor small n
+            n_int = int(n)
+            if n_int < 1000000:
+                # Simple trial division for small numbers
+                factors = []
+                temp = n_int
+                for i in range(2, int(n_int**0.5) + 1):
+                    while temp % i == 0:
+                        factors.append(i)
+                        temp //= i
+                if temp > 1:
+                    factors.append(temp)
+                return f"🔢 Factors of {n}:\n\n{factors}"
+            else:
+                return f"⚠️ N is too large for simple factoring. Try: run_command_safe with command=python3 and args=-c 'import gmpy2; print(gmpy2.isqrt({n}))'"
+        
+        elif operation == "encrypt":
+            if not all([n.strip(), e.strip(), plaintext.strip()]):
+                return "❌ Error: n, e, and plaintext are required for encryption"
+            
+            n_int = int(n)
+            e_int = int(e)
+            m = int.from_bytes(plaintext.encode(), 'big')
+            c = pow(m, e_int, n_int)
+            return f"🔒 RSA Encrypted:\n\n{c}"
+        
+        elif operation == "decrypt":
+            if not all([n.strip(), d.strip(), ciphertext.strip()]):
+                return "❌ Error: n, d, and ciphertext are required for decryption"
+            
+            n_int = int(n)
+            d_int = int(d)
+            c_int = int(ciphertext)
+            m = pow(c_int, d_int, n_int)
+            plaintext_bytes = m.to_bytes((m.bit_length() + 7) // 8, 'big')
+            plaintext_result = plaintext_bytes.decode('utf-8', errors='replace')
+            return f"🔓 RSA Decrypted:\n\n{plaintext_result}"
+        
+        else:
+            return "❌ Invalid operation. Use: factor, encrypt, or decrypt"
+    
+    except ValueError as e:
+        return f"❌ Invalid number format: {str(e)}"
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
+
+
+@mcp.tool()
+async def steganography_extract(file_path: str = "", password: str = "") -> str:
+    """Extract hidden data from image using steghide - file_path required, password optional."""
+    if not file_path.strip():
+        return "❌ Error: File path is required"
+    
+    file_clean = sanitize_input(file_path, r"[a-zA-Z0-9\.\-_/]")
+    if not file_clean:
+        return "❌ Error: Invalid file path"
+    
+    try:
+        cmd = ["steghide", "extract", "-sf", file_clean]
+        
+        if password.strip():
+            cmd.extend(["-p", password])
+        else:
+            cmd.extend(["-p", ""])
+        
+        output = run_command(cmd, timeout=60)
+        return f"🖼️ Steganography Extract:\n\n{output}"
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
+
+
+@mcp.tool()
+async def file_strings(file_path: str = "", min_length: str = "4") -> str:
+    """Extract printable strings from file - useful for finding hidden data in binaries."""
+    if not file_path.strip():
+        return "❌ Error: File path is required"
+    
+    file_clean = sanitize_input(file_path, r"[a-zA-Z0-9\.\-_/]")
+    if not file_clean:
+        return "❌ Error: Invalid file path"
+    
+    try:
+        min_len = sanitize_input(min_length, r"[0-9]")
+        if not min_len:
+            min_len = "4"
+        
+        cmd = ["strings", "-n", min_len, file_clean]
+        output = run_command(cmd, timeout=60)
+        
+        # Limit output to avoid overwhelming
+        lines = output.split('\n')
+        if len(lines) > 100:
+            output = '\n'.join(lines[:100]) + f"\n\n... ({len(lines) - 100} more lines)"
+        
+        return f"📄 Strings (min length {min_len}):\n\n{output}"
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
+
+
+@mcp.tool()
+async def binwalk_analyze(file_path: str = "") -> str:
+    """Analyze file for embedded files and data using binwalk."""
+    if not file_path.strip():
+        return "❌ Error: File path is required"
+    
+    file_clean = sanitize_input(file_path, r"[a-zA-Z0-9\.\-_/]")
+    if not file_clean:
+        return "❌ Error: Invalid file path"
+    
+    try:
+        cmd = ["binwalk", file_clean]
+        output = run_command(cmd, timeout=60)
+        return f"🔍 Binwalk Analysis:\n\n{output}"
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
+
 
 # === SERVER STARTUP ===
 if __name__ == "__main__":

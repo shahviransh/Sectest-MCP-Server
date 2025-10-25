@@ -84,6 +84,20 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip3 install --no-cache-dir -r requirements.txt --break-system-packages
 
+# Install CTF crypto tools via pip
+RUN pip3 install --no-cache-dir --break-system-packages \
+    pycryptodome \
+    gmpy2 \
+    sympy \
+    z3-solver \
+    pwntools \
+    cryptography \
+    ecdsa \
+    hashpumpy \
+    factordb-python \
+    RSA \
+    sage-numerical-backends-coin || true
+
 # Copy the server code
 COPY sectest_server.py .
 
