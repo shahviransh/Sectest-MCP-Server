@@ -280,7 +280,6 @@ async def dns_lookup(domain: str = "", record_type: str = "A") -> str:
         logger.error(f"DNS lookup error: {e}")
         return f"❌ Error: {str(e)}"
 
-#!/usr/bin/env python3
 """
 Add these tools to your sectest_server.py file (after the existing tools, before the SERVER STARTUP section)
 """
