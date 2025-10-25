@@ -280,9 +280,60 @@ async def dns_lookup(domain: str = "", record_type: str = "A") -> str:
         logger.error(f"DNS lookup error: {e}")
         return f"❌ Error: {str(e)}"
 
+#!/usr/bin/env python3
+"""
+Add these tools to your sectest_server.py file (after the existing tools, before the SERVER STARTUP section)
+"""
+
 @mcp.tool()
-async def install_tool(tool_name: str = "") -> str:
-    """Install additional security tool from Kali repositories - requires confirmation and tool must be in Kali repos."""
+async def run_command_safe(command: str = "", args: str = "") -> str:
+    """Execute a Kali tool command safely - command is the tool name, args are the parameters separated by spaces."""
+    if not command.strip():
+        return "❌ Error: Command is required"
+    
+    # Whitelist of allowed commands (expand this list as needed)
+    allowed_commands = [
+        "nmap", "nikto", "sqlmap", "wpscan", "dirb", "searchsploit",
+        "whois", "dig", "host", "nslookup", "curl", "wget",
+        "hydra", "john", "hashcat", "metasploit", "msfconsole",
+        "gobuster", "ffuf", "whatweb", "wafw00f", "sublist3r",
+        "masscan", "zap-cli", "commix", "sslyze", "testssl",
+        "enum4linux", "smbclient", "rpcclient", "crackmapexec",
+        "responder", "impacket-scripts", "bloodhound", "neo4j",
+        "apt-cache", "dpkg", "ls", "cat", "head", "tail", "grep"
+    ]
+    
+    command_clean = sanitize_input(command, r"[a-zA-Z0-9\-_]")
+    
+    # Check if command is in whitelist
+    if command_clean not in allowed_commands:
+        return f"❌ Error: Command '{command_clean}' not in allowed list. Safe commands: {', '.join(allowed_commands[:10])}..."
+    
+    try:
+        cmd = [command_clean]
+        
+        # Parse arguments safely
+        if args.strip():
+            # Split args and sanitize each
+            arg_list = args.split()
+            for arg in arg_list:
+                # Allow common argument patterns
+                arg_clean = sanitize_input(arg, r"[a-zA-Z0-9\.\-_:/=]")
+                if arg_clean:
+                    cmd.append(arg_clean)
+        
+        logger.info(f"Executing whitelisted command: {' '.join(cmd)}")
+        output = run_command(cmd, timeout=600)
+        return f"⚡ Command Output:\n\n{output}"
+        
+    except Exception as e:
+        logger.error(f"Command execution error: {e}")
+        return f"❌ Error: {str(e)}"
+
+
+@mcp.tool()
+async def install_kali_tool(tool_name: str = "", auto_yes: str = "no") -> str:
+    """Install a tool from Kali repositories - tool_name required, auto_yes can be yes to skip confirmation."""
     if not tool_name.strip():
         return "❌ Error: Tool name is required"
     
@@ -291,19 +342,104 @@ async def install_tool(tool_name: str = "") -> str:
         return "❌ Error: Invalid tool name"
     
     try:
-        logger.warning(f"⚠️ Installation requested for: {tool_clean}")
-        
-        # Search for package first
+        # First, search for the package
         search_cmd = ["apt-cache", "search", tool_clean]
         search_result = run_command(search_cmd, timeout=30)
         
         if not search_result or search_result == "Command completed with no output":
             return f"❌ Tool '{tool_clean}' not found in Kali repositories"
         
-        return f"📦 Tool found in repositories:\n\n{search_result}\n\n⚠️ To install, use: sudo apt-get install {tool_clean}\n\nNote: Installation requires manual confirmation due to security restrictions."
+        # Show what was found
+        result = f"📦 Found in repositories:\n\n{search_result}\n\n"
+        
+        # If auto_yes, attempt installation
+        if auto_yes.lower() == "yes":
+            logger.warning(f"⚠️ Installing tool: {tool_clean}")
+            install_cmd = ["sudo", "apt-get", "install", "-y", tool_clean]
+            install_result = run_command(install_cmd, timeout=300)
+            result += f"📥 Installation output:\n\n{install_result}"
+        else:
+            result += f"⚠️ To install, run: install_kali_tool with tool_name='{tool_clean}' and auto_yes='yes'"
+        
+        return result
         
     except Exception as e:
-        logger.error(f"Tool search error: {e}")
+        logger.error(f"Installation error: {e}")
+        return f"❌ Error: {str(e)}"
+
+
+@mcp.tool()
+async def list_installed_tools(category: str = "all") -> str:
+    """List installed Kali tools - category can be all, web, network, exploit, password, wireless, forensics."""
+    try:
+        if category == "all":
+            cmd = ["dpkg", "-l"]
+        else:
+            # Search for tools in specific categories
+            category_keywords = {
+                "web": "web",
+                "network": "nmap|netcat|wireshark",
+                "exploit": "metasploit|exploit|sqlmap",
+                "password": "john|hydra|hashcat|crunch",
+                "wireless": "aircrack|reaver|wifite",
+                "forensics": "autopsy|volatility|binwalk"
+            }
+            
+            if category in category_keywords:
+                cmd = ["dpkg", "-l"]
+                output = run_command(cmd, timeout=30)
+                # Filter output by keywords
+                lines = output.split('\n')
+                filtered = [line for line in lines if any(kw in line.lower() for kw in category_keywords[category].split('|'))]
+                return f"🔧 Installed tools ({category}):\n\n" + '\n'.join(filtered)
+            else:
+                return f"❌ Invalid category. Use: all, web, network, exploit, password, wireless, forensics"
+        
+        output = run_command(cmd, timeout=30)
+        # Just show first 50 lines to avoid overwhelming output
+        lines = output.split('\n')[:50]
+        return f"🔧 Installed packages (first 50):\n\n" + '\n'.join(lines) + "\n\n... (use category filter for specific tools)"
+        
+    except Exception as e:
+        logger.error(f"List tools error: {e}")
+        return f"❌ Error: {str(e)}"
+
+
+@mcp.tool()
+async def get_tool_help(tool_name: str = "") -> str:
+    """Get help information for a specific tool - shows usage and options."""
+    if not tool_name.strip():
+        return "❌ Error: Tool name is required"
+    
+    tool_clean = sanitize_input(tool_name, r"[a-zA-Z0-9\-_]")
+    if not tool_clean:
+        return "❌ Error: Invalid tool name"
+    
+    try:
+        # Try common help flags
+        help_flags = ["--help", "-h", "-help", "help"]
+        
+        for flag in help_flags:
+            cmd = [tool_clean, flag]
+            output = run_command(cmd, timeout=30)
+            
+            # If we got useful output, return it
+            if output and len(output) > 50 and "Error" not in output:
+                return f"📖 Help for {tool_clean}:\n\n{output}"
+        
+        # If no help flag worked, try man page
+        cmd = ["man", tool_clean]
+        output = run_command(cmd, timeout=30)
+        
+        if output and len(output) > 50:
+            # Limit man page output
+            lines = output.split('\n')[:100]
+            return f"📖 Manual for {tool_clean}:\n\n" + '\n'.join(lines)
+        
+        return f"⚠️ No help available for '{tool_clean}'. Tool may not be installed or may not have help documentation."
+        
+    except Exception as e:
+        logger.error(f"Get help error: {e}")
         return f"❌ Error: {str(e)}"
 
 # === SERVER STARTUP ===
