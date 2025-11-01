@@ -16,6 +16,7 @@ KALI_VM_USER = os.environ.get("KALI_VM_USER", "viransh")
 KALI_VM_HOST = os.environ.get("KALI_VM_HOST", "host.docker.internal")
 KALI_VM_KEY_PATH = os.environ.get("KALI_VM_KEY_PATH", "/home/mcpuser/.ssh/id_rsa")
 KALI_VM_PORT = os.environ.get("KALI_VM_PORT", "2222")
+KALI_VM_PASSWORD = os.environ.get("KALI_VM_PASSWORD", "viransh")
 
 # Configure logging to stderr
 logging.basicConfig(
