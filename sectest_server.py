@@ -95,13 +95,6 @@ async def list_tools() -> str:
     return run_ssh_command("dpkg", "-l")
 
 @mcp.tool()
-async def nmap_scan(target: str = "", options: str = "-sV") -> str:
-    """Run nmap network scan on target with specified options."""
-    if not target.strip():
-        return "❌ Error: Target is required"
-    return run_ssh_command("nmap", f"{options} {target}")
-
-@mcp.tool()
 async def test_connection() -> str:
     """Test SSH connection to Kali VM."""
     return run_ssh_command("echo", "'Connection successful' && uname -a")
