@@ -1,49 +1,69 @@
 # Security Testing Tools MCP Server
 
-A Model Context Protocol (MCP) server that provides penetration testing and security assessment tools for educational purposes and controlled testing environments.
+A Model Context Protocol (MCP) server that provides secure access to security testing tools running on a Kali Linux VM via SSH.
 
-## ⚠️ IMPORTANT SECURITY NOTICE
+## ⚠️ LEGAL WARNING
 
-**THIS SERVER CONTAINS POWERFUL SECURITY TESTING TOOLS**
+**FOR AUTHORIZED TESTING ONLY**
 
-- Only use on systems you own or have explicit written permission to test
-- Unauthorized testing is illegal and unethical
-- Tools can cause service disruption or data exposure
-- Always obtain proper authorization before scanning
-- Use responsibly and within legal boundaries
+This server is designed for educational purposes and authorized security testing. Using these tools against systems you don't own or have explicit written permission to test is illegal. Always:
+
+- Obtain written authorization before testing
+- Stay within the scope of authorization
+- Follow responsible disclosure practices
+- Comply with all applicable laws
 
 ## Purpose
 
-This MCP server provides a secure interface for AI assistants to perform web application penetration testing and security assessments in controlled environments. All tools run in an isolated Docker container with input sanitization and non-root execution.
+This MCP server provides a secure interface for AI assistants to execute security testing tools on a remote Kali Linux VM. All commands are executed via SSH with proper authentication.
 
 ## Features
 
 ### Current Implementation
 
-- **`nmap_scan`** - Network port scanning and service detection (basic, full, or stealth modes)
-- **`nikto_scan`** - Web server vulnerability scanning
-- **`sqlmap_test`** - SQL injection vulnerability testing
-- **`wpscan_scan`** - WordPress security scanning
-- **`dirb_scan`** - Directory and file discovery on web servers
-- **`searchsploit_query`** - Search ExploitDB for known vulnerabilities
-- **`whois_lookup`** - Domain registration information lookup
-- **`dns_lookup`** - DNS record queries (A, AAAA, MX, NS, TXT, CNAME)
-- **`install_tool`** - Search for additional security tools in Kali repositories
-
-### Security Features
-
-- Input sanitization to prevent command injection
-- Non-root user execution (except where necessary with sudo)
-- Timeout protection on all commands
-- Comprehensive logging
-- Isolated Docker environment
+- **`All Tools`**: Runs all installed security tools.
 
 ## Prerequisites
 
 - Docker Desktop with MCP Toolkit enabled
 - Docker MCP CLI plugin (`docker mcp` command)
-- Adequate system resources for security scanning
-- Legal authorization to test target systems
+- Kali Linux VM with SSH access configured
+- SSH key pair for authentication
+- Network connectivity between Docker and Kali VM
+
+## Kali VM Setup
+
+Before using this server, set up your Kali Linux VM:
+
+1. **Install Kali Linux** (VirtualBox, VMware, or physical machine)
+
+2. **Configure SSH**:
+```bash
+   sudo apt update
+   sudo apt install openssh-server
+   sudo systemctl enable ssh
+   sudo systemctl start ssh
+```
+
+3. **Create SSH key pair** (on your host machine):
+```bash
+   ssh-keygen -t rsa -b 4096 -f ~/.ssh/kali_mcp_key
+```
+
+4. **Copy public key to Kali VM**:
+```bash
+   ssh-copy-id -i ~/.ssh/kali_mcp_key.pub kali@<KALI_VM_IP>
+```
+
+5. **Test SSH connection**:
+```bash
+   ssh -i ~/.ssh/kali_mcp_key kali@<KALI_VM_IP>
+```
+
+6. **Install security tools** (if not already installed):
+```bash
+   sudo apt install nmap nikto sqlmap wpscan dirb exploitdb
+```
 
 ## Installation
 
@@ -51,101 +71,91 @@ See the step-by-step instructions provided with the files.
 
 ## Usage Examples
 
-In LLM, you can ask:
+In LLM Desktop, you can ask:
 
-- "Run a basic nmap scan on 192.168.1.1"
-- "Scan example.com with nikto on port 443 with SSL"
-- "Test http://testsite.local/login.php for SQL injection"
-- "Scan WordPress site at http://example.com for vulnerable plugins"
-- "Find hidden directories on http://testsite.local"
-- "Search exploitdb for Apache 2.4 vulnerabilities"
-- "Look up DNS records for example.com"
-- "Get WHOIS information for example.com"
+- "Scan 192.168.1.100 with nmap to find open ports"
+- "Run a Nikto scan on http://testsite.local"
+- "Search for WordPress vulnerabilities with WPScan on http://example.com"
+- "Use dirb to find hidden directories on http://target.com"
+- "Search for Apache exploits with searchsploit"
+- "Test http://vulnerable.com for SQL injection with SQLMap"
+- "List all security tools installed on the Kali VM"
+- "Test the connection to the Kali VM"
 
 ## Architecture
 ```
-LLM → MCP Gateway → SecTest MCP Server → Security Tools
-                                       ↓
-                              Kali Linux Container
-                              (nmap, nikto, sqlmap, etc.)
+LLM Desktop → MCP Gateway → SecTest MCP Server → SSH → Kali Linux VM
+                                         ↓
+                               Docker Desktop Secrets
+                          (KALI_VM_HOST, KALI_VM_USER)
+                                         ↓
+                                 SSH Private Key
+                                   (mounted file)
 ```
 
 ## Development
 
 ### Local Testing
 ```bash
-# Build and run the container
-docker build -t sectest-mcp-server .
-docker run -it sectest-mcp-server
+# Set environment variables for testing
+export KALI_VM_HOST="192.168.56.101"
+export KALI_VM_USER="kali"
+export KALI_VM_KEY_PATH="/path/to/ssh/key"
 
-# Test individual tools inside container
-docker run -it sectest-mcp-server /bin/bash
-nmap --version
-nikto -Version
+# Run directly
+python sectest_server.py
+
+# Test MCP protocol
+echo '{"jsonrpc":"2.0","method":"tools/list","id":1}' | python sectest_server.py
 ```
 
 ### Adding New Tools
 
-1. Add tool installation to Dockerfile (apt-get install)
-2. Add function to `sectest_server.py` with @mcp.tool() decorator
-3. Implement input sanitization and validation
-4. Update catalog entry with new tool name
-5. Rebuild Docker image
+1. Add the function to `sectest_server.py`
+2. Decorate with `@mcp.tool()`
+3. Update the catalog entry with the new tool name
+4. Rebuild the Docker image
 
 ## Troubleshooting
 
+### SSH Connection Fails
+
+- Verify Kali VM IP address is correct
+- Check SSH service is running on Kali: `sudo systemctl status ssh`
+- Verify SSH key permissions: `chmod 600 /path/to/key`
+- Test SSH manually: `ssh -i /path/to/key user@host`
+- Check firewall rules on Kali VM
+
 ### Tools Not Appearing
 
-- Verify Docker image built successfully: `docker images | grep sectest`
-- Check catalog and registry files for syntax errors
+- Verify Docker image built successfully
+- Check catalog and registry files
 - Ensure LLM config includes custom catalog
-- Restart LLM completely
-- Check logs: `docker logs <container_name>`
+- Restart LLM
 
-### Scan Failures
+### Command Timeouts
 
-- Verify target is accessible from Docker container
-- Check network connectivity: `docker run -it sectest-mcp-server ping target`
-- Some scans require elevated privileges (use stealth mode carefully)
-- Increase timeout for large scans
-
-### Permission Errors
-
-- Most tools run as non-root user
-- Some operations (like SYN scans) require sudo
-- Dockerfile configures necessary sudo permissions
+- Increase timeout values for long-running scans
+- Check network connectivity
+- Verify target is accessible from Kali VM
 
 ## Security Considerations
 
-- All inputs are sanitized to prevent command injection
-- Commands execute with timeout protection
-- Running as non-root user where possible
-- Isolated in Docker container
-- Comprehensive logging for audit trails
-- No credentials stored or transmitted
+- SSH keys stored securely in Docker volumes
+- Never hardcode credentials
+- Running as non-root user in container
+- SSH keys should have restrictive permissions (600)
+- All commands logged for audit purposes
+- Use strong SSH keys (minimum 2048-bit RSA or ed25519)
 
-## Legal and Ethical Use
+## Ethical Use Guidelines
 
-**You are responsible for:**
-- Obtaining proper authorization before testing
-- Complying with all applicable laws
-- Using tools ethically and responsibly
-- Understanding the impact of security tests
-- Respecting privacy and data protection laws
-
-**Prohibited uses:**
-- Testing systems without authorization
-- Accessing data you're not authorized to access
-- Causing service disruptions
-- Any illegal activity
-
-## Performance Notes
-
-- Scans can take several minutes depending on scope
-- Default timeout is 10 minutes per operation
-- Large scans may require timeout adjustments
-- Container uses ~500MB-1GB RAM during active scanning
+1. **Authorization**: Always obtain written permission
+2. **Scope**: Stay within authorized testing boundaries
+3. **Documentation**: Keep detailed logs of all testing
+4. **Disclosure**: Report vulnerabilities responsibly
+5. **Legal Compliance**: Follow all applicable laws and regulations
 
 ## License
 
-MIT License - Use at your own risk with proper authorization
+MIT License - For educational and authorized testing purposes only.

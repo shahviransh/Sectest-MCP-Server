@@ -1,117 +1,43 @@
-# Use Kali Linux rolling as base
-FROM kalilinux/kali-rolling:latest
+# Use Python base (slim to reduce size)
+FROM python:3.12-slim
 
 # Set working directory
 WORKDIR /app
 
-# Set Python unbuffered mode
-ENV PYTHONUNBUFFERED=1
+# Avoid prompts during package install
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
 
-# First update and install basic tools
+# Install system dependencies and SSH client
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    python3 \
-    python3-pip \
     git \
     curl \
     wget \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install network scanning tools
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    nmap \
-    masscan \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install web scanning tools
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    nikto \
-    sqlmap \
-    wpscan \
-    whatweb \
-    wafw00f \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install directory brute force tools
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    dirb \
-    gobuster \
-    ffuf \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install exploitation tools
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    exploitdb \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install password attack tools
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    hydra \
-    john \
-    crunch \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install enumeration tools
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    enum4linux \
-    smbclient \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install network utilities
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+    openssh-client \
+    sudo \
     net-tools \
     dnsutils \
-    whois \
-    netcat-traditional \
-    socat \
     && rm -rf /var/lib/apt/lists/*
 
-# Update exploitdb
-RUN searchsploit -u || true
-
-# Copy requirements first for better caching
+# Copy Python requirements first for caching
 COPY requirements.txt .
 
 # Install Python dependencies
-RUN pip3 install --no-cache-dir -r requirements.txt --break-system-packages
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install CTF crypto tools via pip
-RUN pip3 install --no-cache-dir --break-system-packages \
-    pycryptodome \
-    gmpy2 \
-    sympy \
-    z3-solver \
-    pwntools \
-    cryptography \
-    ecdsa \
-    hashpumpy \
-    factordb-python \
-    RSA \
-    sage-numerical-backends-coin || true
-
-# Copy the server code
+# Copy MCP server code
 COPY sectest_server.py .
 
-# Create non-root user with sudo access
+# Create non-root user
 RUN useradd -m -u 1000 mcpuser && \
-    echo "mcpuser:mcpuser" | chpasswd && \
-    chown -R mcpuser:mcpuser /app && \
-    apt-get update && \
-    apt-get install -y sudo && \
-    echo "mcpuser ALL=(ALL) NOPASSWD: /usr/bin/nmap, /usr/bin/nikto, /usr/bin/sqlmap, /usr/bin/wpscan, /usr/bin/dirb, /usr/bin/masscan, /usr/bin/gobuster, /usr/bin/ffuf, /usr/bin/hydra, /usr/bin/apt-get" >> /etc/sudoers && \
-    rm -rf /var/lib/apt/lists/*
+    chown -R mcpuser:mcpuser /app
 
 # Switch to non-root user
 USER mcpuser
 
-# Run the server
+# Expose working directory for SSH key mount
+VOLUME ["/app"]
+
+# Command to run the server
 CMD ["python3", "sectest_server.py"]
