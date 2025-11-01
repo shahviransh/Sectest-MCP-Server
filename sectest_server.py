@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 """
 Security Testing Tools MCP Server with full LLM command access.
-Commands are executed remotely on Kali VM or locally after explicit approval.
+Commands are executed remotely on Kali VM via SSH.
 """
 import os
 import sys
 import logging
 import subprocess
 import re
-from datetime import datetime, timezone
 
 from mcp.server.fastmcp import FastMCP
 
 # === CONFIGURATION ===
-KALI_VM_USER = "mcpuser"
-KALI_VM_HOST = "192.168.56.101"   # Set your Kali VM IP here
-KALI_VM_KEY_PATH = "/app/mcp_id_rsa"  # Mounted SSH private key in Docker
+KALI_VM_USER = os.environ.get("KALI_VM_USER", "viransh")
+KALI_VM_HOST = os.environ.get("KALI_VM_HOST", "host.docker.internal")
+KALI_VM_KEY_PATH = os.environ.get("KALI_VM_KEY_PATH", "/home/mcpuser/.ssh/id_rsa")
+KALI_VM_PORT = os.environ.get("KALI_VM_PORT", "2222")
 
 # Configure logging to stderr
 logging.basicConfig(
@@ -30,16 +30,8 @@ mcp = FastMCP("sectest")
 
 # === UTILITY FUNCTIONS ===
 
-def sanitize_input(input_str: str, allow_chars: str = r"[a-zA-Z0-9\.\-_:/]") -> str:
-    """Sanitize input for logging or display purposes (not for security enforcement)."""
-    pattern = re.compile(allow_chars)
-    sanitized = ''.join(pattern.findall(input_str))
-    if sanitized != input_str:
-        logger.warning(f"Input sanitized for display: '{input_str}' -> '{sanitized}'")
-    return sanitized
-
 def run_command(cmd: list, timeout: int = 300) -> str:
-    """Execute a command locally or via SSH, capturing output."""
+    """Execute a command via SSH, capturing output."""
     try:
         logger.info(f"Running command: {' '.join(cmd)}")
         result = subprocess.run(
@@ -57,32 +49,27 @@ def run_command(cmd: list, timeout: int = 300) -> str:
         logger.error(f"Command execution error: {e}")
         return f"❌ Error executing command: {str(e)}"
 
-def run_command_interactive(command: str = "", args: str = "") -> str:
+def run_ssh_command(command: str = "", args: str = "") -> str:
     """
-    Execute ANY command (LLM full access) with explicit approval prompt.
-    Can run locally or on remote Kali VM via SSH.
+    Execute command on Kali VM via SSH.
     """
     if not command.strip():
         return "❌ Error: Command is required"
 
     full_cmd = f"{command} {args}".strip()
-    logger.warning(f"⚠️ LLM requested command: {full_cmd}")
-
-    # Prompt for approval (manual input)
-    approval = input(f"Approve execution of command? (yes/no): ").strip().lower()
-    if approval != "yes":
-        return "❌ Command execution denied"
+    logger.warning(f"⚠️ Executing command: {full_cmd}")
 
     # Build SSH command for Kali VM
     ssh_cmd = [
         "ssh",
         "-i", KALI_VM_KEY_PATH,
+        "-p", KALI_VM_PORT,
         "-o", "StrictHostKeyChecking=no",
+        "-o", "UserKnownHostsFile=/dev/null",
+        "-o", "ConnectTimeout=10",
         f"{KALI_VM_USER}@{KALI_VM_HOST}",
-        "--", command
+        full_cmd
     ]
-    if args.strip():
-        ssh_cmd.extend(args.split())
 
     # Execute command
     output = run_command(ssh_cmd, timeout=600)
@@ -92,33 +79,37 @@ def run_command_interactive(command: str = "", args: str = "") -> str:
 
 @mcp.tool()
 async def execute(command: str = "", args: str = "") -> str:
-    """
-    MCP tool to execute any command with LLM.
-    command: main command (tool, script, etc.)
-    args: space-separated arguments
-    """
-    return run_command_interactive(command, args)
+    """Execute any command on Kali VM via SSH."""
+    return run_ssh_command(command, args)
 
 @mcp.tool()
 async def help_command(command: str = "") -> str:
-    """Show basic help/manual for a tool."""
+    """Show basic help manual for a tool."""
     if not command.strip():
         return "❌ Error: Command required"
-    try:
-        cmd = [command, "--help"]
-        return run_command_interactive(cmd[0], " ".join(cmd[1:]))
-    except Exception as e:
-        return f"❌ Error: {str(e)}"
+    return run_ssh_command(command, "--help")
 
 @mcp.tool()
 async def list_tools() -> str:
     """List installed packages on Kali VM."""
-    return run_command_interactive("dpkg", "-l")
+    return run_ssh_command("dpkg", "-l")
+
+@mcp.tool()
+async def nmap_scan(target: str = "", options: str = "-sV") -> str:
+    """Run nmap network scan on target with specified options."""
+    if not target.strip():
+        return "❌ Error: Target is required"
+    return run_ssh_command("nmap", f"{options} {target}")
+
+@mcp.tool()
+async def test_connection() -> str:
+    """Test SSH connection to Kali VM."""
+    return run_ssh_command("echo", "'Connection successful' && uname -a")
 
 # === SERVER STARTUP ===
 if __name__ == "__main__":
-    logger.info("Starting Security Testing Tools MCP server (full LLM access)...")
-    logger.warning("⚠️ WARNING: LLM can execute ANY command, approval is required for safety.")
+    logger.info("Starting Security Testing Tools MCP server...")
+    logger.warning("⚠️ WARNING: This server executes commands on Kali VM.")
     logger.warning("⚠️ Only use on systems you own or have explicit permission to test.")
 
     try:

@@ -33,7 +33,15 @@ COPY sectest_server.py .
 RUN useradd -m -u 1000 mcpuser && \
     chown -R mcpuser:mcpuser /app
 
-# Switch to non-root user
+RUN mkdir -p /home/mcpuser/.ssh && \
+    chown mcpuser:mcpuser /home/mcpuser/.ssh && \
+    chmod 700 /home/mcpuser/.ssh
+
+COPY kali_mcp_key /home/mcpuser/.ssh/id_rsa
+
+RUN chown mcpuser:mcpuser /home/mcpuser/.ssh/id_rsa && \
+    chmod 600 /home/mcpuser/.ssh/id_rsa
+
 USER mcpuser
 
 # Expose working directory for SSH key mount
