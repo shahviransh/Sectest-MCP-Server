@@ -47,17 +47,17 @@ def run_command(cmd: list, timeout: int = 300) -> str:
         return f"⏱️ Command timed out after {timeout} seconds"
     except Exception as e:
         logger.error(f"Command execution error: {e}")
-        return f"❌ Error executing command: {str(e)}"
+        return f"Error executing command: {str(e)}"
 
 def run_ssh_command(command: str = "", args: str = "") -> str:
     """
     Execute command on Kali VM via SSH.
     """
     if not command.strip():
-        return "❌ Error: Command is required"
+        return "Error: Command is required"
 
     full_cmd = f"{command} {args}".strip()
-    logger.warning(f"⚠️ Executing command: {full_cmd}")
+    logger.warning(f"Executing command: {full_cmd}")
 
     # Build SSH command for Kali VM
     ssh_cmd = [
@@ -73,7 +73,7 @@ def run_ssh_command(command: str = "", args: str = "") -> str:
 
     # Execute command
     output = run_command(ssh_cmd, timeout=600)
-    return f"✅ Command executed:\n\n{output}"
+    return f"Command executed:\n\n{output}"
 
 # === MCP TOOL DEFINITIONS ===
 
@@ -86,7 +86,7 @@ async def execute(command: str = "", args: str = "") -> str:
 async def help_command(command: str = "") -> str:
     """Show basic help manual for a tool."""
     if not command.strip():
-        return "❌ Error: Command required"
+        return "Error: Command required"
     return run_ssh_command(command, "--help")
 
 @mcp.tool()
@@ -102,8 +102,8 @@ async def test_connection() -> str:
 # === SERVER STARTUP ===
 if __name__ == "__main__":
     logger.info("Starting Security Testing Tools MCP server...")
-    logger.warning("⚠️ WARNING: This server executes commands on Kali VM.")
-    logger.warning("⚠️ Only use on systems you own or have explicit permission to test.")
+    logger.warning("WARNING: This server executes commands on Kali VM.")
+    logger.warning("Only use on systems you own or have explicit permission to test.")
 
     try:
         mcp.run(transport='stdio')
